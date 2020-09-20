@@ -1,0 +1,27 @@
+{
+    "compilerOptions": {
+        "module": "commonjs",
+        "moduleResolution": "node",
+        "noLib": false,
+        "lib": ["es7"],
+        "declaration": true,
+        "target": "es2017",
+        "esModuleInterop": true,
+        "incremental": true,
+        "experimentalDecorators": true,
+        "emitDecoratorMetadata": true,
+        "skipLibCheck": true,
+        "outDir": "./dist",
+        "types": [
+            "mocha",
+            "node"
+        ]
+    },
+    "exclude": [
+        "dist",
+        "node_modules"
+    ],
+    "include": [
+        "./src/**/*"
+    ]
+}
