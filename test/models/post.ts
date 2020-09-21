@@ -16,7 +16,7 @@ export class Post implements HasFormatter, HasTransformer {
     title: string
 
     @Relation({
-        model: User,
+        model: () => User,
         localKey: 'author_id',
         foreignKey: 'id',
         single: true
@@ -25,7 +25,7 @@ export class Post implements HasFormatter, HasTransformer {
     author: User
 
     @Relation({
-        model: Category,
+        model: () => Category,
         localKey: 'id',
         localJoin: 'post_id',
         foreignKey: 'id',
@@ -40,7 +40,7 @@ export class Post implements HasFormatter, HasTransformer {
     content: string
 
     @Relation({
-        model: Photo,
+        model: () => Photo,
         localKey: 'id',
         foreignKey: 'related_id',
         single: true,

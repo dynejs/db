@@ -4,6 +4,7 @@ import { Connection } from './connection'
 import { Constructable, resolve } from '@dynejs/core'
 import { FieldMetadataArgs, RelationMetadataArgs, metadataStorage } from './metadata/metadata-storage'
 import { sync } from './sync'
+import { Relation } from './relation'
 
 export type AttributeKeys<T, K extends keyof T> = Pick<T, K> | T
 
@@ -87,81 +88,16 @@ export class Repo<T> {
         let result = await this._query
 
         const relations = this.relations.filter(relation => {
-            if (this._with) {
-                return this._with.indexOf(relation.as) > -1
-            }
-
-            return true
+            return this._with
+                ? this._with.indexOf(relation.as) > -1
+                : true
         })
 
         for (const relation of relations) {
-            const q = new Repo(relation.model)
-            await q.setRelation(result, relation)
+            await (new Relation(result, relation)).build()
         }
 
         return result
-    }
-
-    /**
-     * Make and run queries for relations
-     * This is initialized by parent model, called with the parent result set
-     * Based on relation we assign them to the appropriate fields
-     *
-     * @param result
-     * @param relation
-     */
-    async setRelation(result: DBRow[], relation: RelationMetadataArgs) {
-        const method = relation.single ? 'find' : 'filter'
-        const whereIds = result.map(r => r[relation.localKey])
-
-        let subQuery: (query: Knex.QueryBuilder) => void = null
-        let subFiltering: (item: DBRow) => any = null
-
-        const pivotQuery = (query) => relation.pivot.map(field => {
-            query.select(`*`)
-            query.select(`${relation.joinTable}.${field}`)
-        })
-
-        // Check if there a join table in the relation
-        if (relation.joinTable) {
-            subQuery = query => {
-                if (relation.pivot) {
-                    pivotQuery(query)
-                }
-                query.leftJoin(
-                    relation.joinTable,
-                    `${relation.joinTable}.${relation.foreignJoin}`,
-                    `${this.table}.${relation.foreignKey}`
-                )
-                query.whereIn(`${relation.joinTable}.${relation.localJoin}`, whereIds)
-                if (relation.query) {
-                    relation.query(query)
-                }
-            }
-            subFiltering = (item) => {
-                return (subItem) => subItem[relation.localJoin] === item[relation.localKey]
-            }
-        } else {
-            subQuery = query => {
-                if (relation.pivot) {
-                    pivotQuery(query)
-                }
-                query.whereIn(relation.foreignKey, whereIds)
-                if (relation.query) {
-                    relation.query(query)
-                }
-            }
-            subFiltering = (item) => {
-                return (subItem) => subItem[relation.foreignKey] === item[relation.localKey]
-            }
-        }
-
-        const subRes = await this.query(subQuery).rawGet()
-
-        result.forEach(r => {
-            const relationSet = subRes[method](subFiltering(r))
-            r[relation.as] = this.format(relationSet)
-        })
     }
 
     /**
@@ -181,19 +117,17 @@ export class Repo<T> {
             const model = new this.model()
 
             // Set model properties
-            // const formattedModel = fields.reduce((acc, field) => {
-            //     acc[field.name] = this.cast(field.name, item[field.name])
-            //     return acc
-            // }, model)
-
-            Object.assign(model, item)
+            const formattedModel = fields.reduce((acc, field) => {
+                acc[field.name] = this.cast(field.name, item[field.name])
+                return acc
+            }, model)
 
             // Run a format, to make additional changes on model
             if (typeof model.format === 'function') {
                 model.format()
             }
 
-            return model
+            return formattedModel
         }
 
         if (!Array.isArray(result)) {
@@ -399,7 +333,7 @@ export class Repo<T> {
      *
      * @param args
      */
-    whereIn(...args: any) {
+    whereIn(...args: any[]) {
         this._query.whereIn.apply(this._query, args)
         return this
     }

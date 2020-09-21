@@ -6,7 +6,7 @@ import { metadataStorage } from '../metadata/metadata-storage'
  * Relation decorator options
  */
 export interface RelationOptions {
-    model: Constructable<any>
+    model: () => Constructable<any>
     localKey: string
     localJoin?: string
     foreignKey: string

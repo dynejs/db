@@ -198,10 +198,10 @@ describe('Query relations', () => {
         assert(res.categories.length > 0)
     })
 
-    // it('should give belongsTo relations', async () => {
-    //     const res = await address().with(['user']).find()
-    //     assert(res.user.name === 'Test User')
-    // })
+    it('should give belongsTo relations', async () => {
+        const res = await address().with(['user']).find()
+        assert(res.user.name === 'Test User')
+    })
 
     it('should give results with whereExists', async () => {
         await createPosts()

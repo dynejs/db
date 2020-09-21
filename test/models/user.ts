@@ -3,6 +3,7 @@ import { Address } from './address'
 
 @Model({
     table: 'users',
+    with: []
 })
 export class User {
 
@@ -16,7 +17,7 @@ export class User {
     email: string
 
     @Relation({
-        model: Address,
+        model: () => Address,
         localKey: 'id',
         foreignKey: 'user_id',
         single: true

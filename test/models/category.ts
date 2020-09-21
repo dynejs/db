@@ -14,7 +14,7 @@ export class Category {
 
     @Field()
     @Relation({
-        model: Photo,
+        model: () => Photo,
         localKey: 'id',
         foreignKey: 'related_id',
         single: true

@@ -1,7 +1,9 @@
-import { Model, Field, Repo } from '../../src'
+import { Model, Field, Repo, Relation } from '../../src'
+import { User } from './user'
 
 @Model({
-    table: 'addresses'
+    table: 'addresses',
+    with: []
 })
 export class Address {
     @Field()
@@ -9,6 +11,15 @@ export class Address {
 
     @Field()
     address: string
+
+    @Relation({
+        model: () => User,
+        localKey: 'user_id',
+        foreignKey: 'id',
+        single: true
+    })
+    @Field()
+    user: User
 
     user_id: string
 }
