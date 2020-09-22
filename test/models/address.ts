@@ -1,4 +1,4 @@
-import { Model, Field, Repo, Relation } from '../../src'
+import { BelongsTo, Field, Model, Repo } from '../../src'
 import { User } from './user'
 
 @Model({
@@ -12,12 +12,7 @@ export class Address {
     @Field()
     address: string
 
-    @Relation({
-        model: () => User,
-        localKey: 'user_id',
-        foreignKey: 'id',
-        single: true
-    })
+    @BelongsTo(() => User)
     @Field()
     user: User
 

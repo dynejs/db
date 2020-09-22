@@ -6,6 +6,7 @@ import { post } from './models/post'
 import { category } from './models/category'
 import { address } from './models/address'
 import { user } from './models/user'
+import { comment } from './models/comment'
 
 let db = null
 let userId = null
@@ -14,6 +15,7 @@ async function createPosts() {
     await db('posts').truncate()
     await db('categories').truncate()
     await db('category_post').truncate()
+    await db('comments').truncate()
 
     const categoryId1 = await category().create({
         title: 'Category one'
@@ -35,8 +37,30 @@ async function createPosts() {
         author_id: userId
     })
 
-    await post().sync('categories', postId1, [categoryId1, categoryId2])
-    await post().sync('categories', postId2, [categoryId2])
+    const commentId1 = await comment().create({
+        comment: 'First comment',
+        post_id: postId1
+    })
+
+    const commentId2 = await comment().create({
+        comment: 'Second comment',
+        post_id: postId1
+    })
+
+    await db('category_post').insert({
+        post_id: postId1,
+        category_id: categoryId1
+    })
+
+    await db('category_post').insert({
+        post_id: postId1,
+        category_id: categoryId2
+    })
+
+    await db('category_post').insert({
+        post_id: postId2,
+        category_id: categoryId2
+    })
 }
 
 before(async () => {
@@ -49,7 +73,6 @@ before(async () => {
 
     await db('users').truncate()
     await db('addresses').truncate()
-
     await db('categories').truncate()
 
     userId = await user().create({
@@ -167,7 +190,7 @@ describe('Query', () => {
 
 describe('Query relations', () => {
     it('should give belongsToMany relations', async () => {
-        const res = await post().find()
+        const res = await post().with(['categories']).find()
 
         assert(Array.isArray(res.categories))
         assert(res.categories.length > 0)
@@ -180,9 +203,19 @@ describe('Query relations', () => {
         assert(res.address.address !== '')
     })
 
+    it('should give has many relations', async () => {
+        const res = await post().with(['comments']).find()
+        assert(res.comments[0].comment !== '')
+    })
+
     it('should give hasOne relations with other table', async () => {
-        const res = await post().with(['author']).find()
-        assert(res.author.name === 'Test User')
+        const res = await user().with(['address']).find()
+        assert(res.address.address !== '')
+    })
+
+    it('should test belongsTo relations with other table', async () => {
+        const res = await address().with(['user']).find()
+        assert(res.user.name === 'Test User')
     })
 
     it('should give sync relations', async () => {

@@ -3,8 +3,10 @@ import Knex = require('knex')
 import { Connection } from './connection'
 import { Constructable, resolve } from '@dynejs/core'
 import { FieldMetadataArgs, RelationMetadataArgs, metadataStorage } from './metadata/metadata-storage'
-import { sync } from './sync'
-import { Relation } from './relation'
+import { HasOne } from './relations/has-one'
+import { BelongsTo } from './relations/belongs-to'
+import { HasMany } from './relations/has-many'
+import { BelongsToMany } from './relations/belongs-to-many'
 
 export type AttributeKeys<T, K extends keyof T> = Pick<T, K> | T
 
@@ -17,12 +19,27 @@ export class Repo<T> {
     /**
      * Knex instance
      */
-    db: Knex
+    public db: Knex
 
     /**
      * Table name used for queries
      */
-    table: string
+    public table: string
+
+    /**
+     * Relations metadata on the for the current repo
+     */
+    public relations: RelationMetadataArgs[]
+
+    /**
+     * Model fields metadata
+     */
+    public fields: FieldMetadataArgs[]
+
+    /**
+     * Model used for building query
+     */
+    public model: Constructable<any>
 
     /**
      * Internal Knex query
@@ -34,21 +51,6 @@ export class Repo<T> {
      * its optionally set by query or on model metadata
      */
     private _with: string[]
-
-    /**
-     * Relations metadata on the for the current repo
-     */
-    relations: RelationMetadataArgs[]
-
-    /**
-     * Model fields metadata
-     */
-    fields: FieldMetadataArgs[]
-
-    /**
-     * Model used for building query
-     */
-    model: Constructable<any>
 
     constructor(model: Constructable<T>) {
         if (!model) {
@@ -94,7 +96,21 @@ export class Repo<T> {
         })
 
         for (const relation of relations) {
-            await (new Relation(result, relation)).build()
+            if(relation.type === 'has-one') {
+                await (new HasOne(result, relation)).build()
+            }
+
+            if(relation.type === 'belongs-to') {
+                await (new BelongsTo(result, relation)).build()
+            }
+
+            if(relation.type === 'has-many') {
+                await (new HasMany(result, relation)).build()
+            }
+
+            if(relation.type === 'belongs-to-many') {
+                await (new BelongsToMany(result, relation)).build()
+            }
         }
 
         return result
@@ -248,7 +264,7 @@ export class Repo<T> {
         if (!relationData) {
             throw new Error(`Relation data not found for: ${this.model.name} and relation: ${relation}`)
         }
-        await sync(this.db, relationData, id, ids)
+        await (new BelongsToMany([], relationData)).sync(this.db, id, ids)
     }
 
     /**

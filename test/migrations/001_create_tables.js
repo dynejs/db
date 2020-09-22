@@ -45,6 +45,13 @@ async function up(db) {
         table.string('related_type').index()
         table.timestamps()
     })
+
+    await db.schema.createTable('comments', function(table) {
+        table.uuid('id').primary()
+        table.uuid('post_id').index()
+        table.string('comment')
+        table.timestamps()
+    })
 }
 
 async function down(db) {
@@ -54,6 +61,7 @@ async function down(db) {
     db.schema.dropTable('categories')
     db.schema.dropTable('categories_posts')
     db.schema.dropTable('items')
+    db.schema.dropTable('comments')
 }
 
 module.exports = {

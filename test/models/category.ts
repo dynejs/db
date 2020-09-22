@@ -1,9 +1,9 @@
-import { Model, Field, Relation, Repo } from '../../src'
+import { Model, Field, Relation, Repo, HasOne } from '../../src'
 import { Photo } from './photo'
 
 @Model({
     table: 'categories',
-    with: ['photo']
+    with: []
 })
 export class Category {
     @Field()
@@ -13,11 +13,8 @@ export class Category {
     title: string
 
     @Field()
-    @Relation({
-        model: () => Photo,
-        localKey: 'id',
+    @HasOne(() => Photo, {
         foreignKey: 'related_id',
-        single: true
     })
     photo: Photo
 }

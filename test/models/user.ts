@@ -1,4 +1,4 @@
-import { Model, Field, Relation, Repo } from '../../src'
+import { Field, HasOne, Model, Repo } from '../../src'
 import { Address } from './address'
 
 @Model({
@@ -16,12 +16,7 @@ export class User {
     @Field()
     email: string
 
-    @Relation({
-        model: () => Address,
-        localKey: 'id',
-        foreignKey: 'user_id',
-        single: true
-    })
+    @HasOne(() => Address)
     @Field()
     address: Address
 }

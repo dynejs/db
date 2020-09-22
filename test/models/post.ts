@@ -1,8 +1,9 @@
-import { Model, Field, Relation, Repo } from '../../src'
+import { BelongsTo, BelongsToMany, Field, HasMany, HasOne, Model, Repo } from '../../src'
 import { Category } from './category'
 import { Photo } from './photo'
 import { User } from './user'
 import { HasFormatter, HasTransformer } from '../../src/common'
+import { Comment } from './comment'
 
 @Model({
     table: 'posts'
@@ -15,39 +16,29 @@ export class Post implements HasFormatter, HasTransformer {
     @Field()
     title: string
 
-    @Relation({
-        model: () => User,
+    @BelongsTo(() => User, {
         localKey: 'author_id',
-        foreignKey: 'id',
-        single: true
     })
     @Field()
     author: User
 
-    @Relation({
-        model: () => Category,
-        localKey: 'id',
-        localJoin: 'post_id',
-        foreignKey: 'id',
-        foreignJoin: 'category_id',
-        joinTable: 'category_post',
-        single: false
-    })
+    @BelongsToMany(() => Category)
     @Field()
     categories: Category[]
 
     @Field()
     content: string
 
-    @Relation({
-        model: () => Photo,
-        localKey: 'id',
+    @HasOne(() => Photo, {
         foreignKey: 'related_id',
-        single: true,
         query: q => q.where('related_type', 'category')
     })
     @Field()
     photo: Photo
+
+    @HasMany(() => Comment)
+    @Field()
+    comments: Comment[]
 
     @Field({
         cast: 'boolean'

@@ -1,6 +1,6 @@
 {
     "name": "@dynejs/db",
-    "version": "0.0.1",
+    "version": "0.0.7",
     "main": "./dist/index.js",
     "engines": {
         "node": "~10.16.0"
@@ -24,9 +24,19 @@
     "scripts": {
         "build": "tsc",
         "dev": "tsc -w",
-        "test": "mocha --require ts-node/register  --watch-extensions ts 'test/db.test.ts' --exit",
+        "test": "mocha --require ts-node/register  --watch-extensions ts 'test/**/*.test.ts' --exit",
         "test:db": "ts-node ./test/migrate.ts --dir ./test/tsconfig.json"
     },
+    "bugs": {
+        "url" : "https://github.com/dynejs/db/issues",
+        "email" : "iamzozo@gmail.com"
+    },
+    "homepage": "https://github.com/dynejs/db",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/dynejs/db.git"
+    },
+    "license": "MIT",
     "files": [
         "dist"
     ]

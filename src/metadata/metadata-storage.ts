@@ -1,6 +1,7 @@
-import { ModelOptions } from "../decorators/model"
-import { FieldOptions } from "../decorators/field"
-import { RelationOptions } from "../decorators/relation"
+import { ModelOptions } from '../decorators/model'
+import { FieldOptions } from '../decorators/field'
+import { RelationOptions } from '../decorators/relation'
+import { Constructable } from '@dynejs/core'
 
 /**
  * Extends field options with internal properties
@@ -14,6 +15,8 @@ export interface FieldMetadataArgs extends FieldOptions {
  * Extends field options with internal properties
  */
 export interface RelationMetadataArgs extends RelationOptions {
+    model: () => Constructable<any>
+    type: string
     as: string
     class: string
 }
@@ -53,7 +56,7 @@ export class MetadataStorage {
      *
      * @param name
      */
-    getModelMeta(name: string) {
+    getModelMeta(name: string): ModelMetadataArgs {
         return this.models.find(model => model.class === name)
     }
 
