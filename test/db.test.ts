@@ -114,6 +114,14 @@ describe('Query', () => {
         assert(p.content === 'Formatted')
     })
 
+    it('should throws on validation error', async () => {
+        const create = Repo.create(Post, {
+            title: ''
+        })
+
+        assert.rejects(create)
+    })
+
     it('should change query on model', async () => {
         const res = await Repo.get(Post, {
             title: 'First post'

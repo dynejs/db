@@ -178,15 +178,17 @@ export class Repo<T> {
         const builder = this.getBuilder(model)
         const instance: any = new model()
 
-        const data = Object.assign(instance, attributes, {
+        let data = Object.assign(instance, attributes)
+
+        if (typeof instance.transform === 'function') {
+            data = await instance.transform(data)
+        }
+
+        data = Object.assign(data, {
             id: this.getPrimaryKey(),
             created_at: new Date(),
             updated_at: new Date()
         })
-
-        if (typeof instance.transform === 'function') {
-            await instance.transform()
-        }
 
         await builder.insert(data)
         return data.id
@@ -205,13 +207,15 @@ export class Repo<T> {
         this.changeQuery(builder, query)
 
         const instance: any = new model()
-        const data = Object.assign(instance, attributes, {
-            updated_at: new Date()
-        })
+        let data = Object.assign(instance, attributes)
 
         if (typeof instance.transform === 'function') {
-            await instance.transform()
+            data = await instance.transform(data)
         }
+
+        data = Object.assign(data, {
+            updated_at: new Date()
+        })
 
         const updated = await builder.update(data)
 

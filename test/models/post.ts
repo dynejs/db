@@ -2,14 +2,14 @@ import { BelongsTo, BelongsToMany, Field, HasMany, HasOne, Model } from '../../s
 import { Category } from './category'
 import { Photo } from './photo'
 import { User } from './user'
-import { HasFormatter, HasTransformer } from '../../src/common'
 import { Comment } from './comment'
+import { validate } from '@dynejs/core'
 
 @Model({
     table: 'posts',
     with: ['categories', 'comments']
 })
-export class Post implements HasFormatter, HasTransformer {
+export class Post {
 
     @Field()
     id: string
@@ -55,7 +55,14 @@ export class Post implements HasFormatter, HasTransformer {
         this.metadata = 'METADATA'
     }
 
-    transform() {
-        this.content = 'Formatted'
+    transform(data) {
+        validate(data, {
+            title: 'required'
+        })
+
+        return {
+            title: data.title,
+            content: 'Formatted'
+        }
     }
 }
