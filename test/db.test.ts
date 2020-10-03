@@ -148,11 +148,12 @@ describe('Query', () => {
         assert(!res)
     })
 
-    it('should give paginated result', async () => {
+    it.only('should give paginated result', async () => {
         // Rest posts db
         await createPosts()
 
-        const res = await Repo.paginate(Post, 1, 0)
+        const res = await Repo.paginate(Post, 1, 0, query => query.orderBy('title', 'desc'))
+        console.log(res)
         assert(res.current === 1)
         assert(res.pages === 2)
         assert(res.total === 2)

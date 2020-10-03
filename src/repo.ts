@@ -250,7 +250,7 @@ export class Repo<T> {
         const paged = await builder.clone()
 
         builder.limit(size).offset(offset * size)
-        const result = await this.get(model)
+        const result = await this.get(model, query)
 
         return {
             current: offset + 1,
