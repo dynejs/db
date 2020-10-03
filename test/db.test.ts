@@ -106,7 +106,7 @@ describe('Query', () => {
     it('should transform input data', async () => {
         const id = await Repo.create(Post, {
             title: 'Hello world',
-            content: 'Not formatted'
+            content: 'Not formatted',
         })
 
         const p = await Repo.find(Post, { id })
@@ -148,16 +148,15 @@ describe('Query', () => {
         assert(!res)
     })
 
-    it.only('should give paginated result', async () => {
+    it('should give paginated result', async () => {
         // Rest posts db
         await createPosts()
 
         const res = await Repo.paginate(Post, 1, 0, query => query.orderBy('title', 'desc'))
-        console.log(res)
         assert(res.current === 1)
         assert(res.pages === 2)
         assert(res.total === 2)
-        assert(res.data[0].title === 'First post')
+        assert(res.data[0].title === 'Second post')
     })
 
     it('should order items', async () => {
