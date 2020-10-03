@@ -1,4 +1,4 @@
-import { Model, Field, Relation, Repo, HasOne } from '../../src'
+import { Field, HasOne, Model } from '../../src'
 import { Photo } from './photo'
 
 @Model({
@@ -18,5 +18,3 @@ export class Category {
     })
     photo: Photo
 }
-
-export const category = () => new Repo(Category)

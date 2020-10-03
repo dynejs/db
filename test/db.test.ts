@@ -1,12 +1,12 @@
 import assert = require('assert')
 import { app, container } from '@dynejs/core'
-import { Connection, DatabaseModule, Migrator } from '../src'
-import { photo } from './models/photo'
-import { post } from './models/post'
-import { category } from './models/category'
-import { address } from './models/address'
-import { user } from './models/user'
-import { comment } from './models/comment'
+import { Connection, DatabaseModule, Migrator, Repo } from '../src'
+import { Photo } from './models/photo'
+import { Post } from './models/post'
+import { Category } from './models/category'
+import { Address } from './models/address'
+import { User } from './models/user'
+import { Comment } from './models/comment'
 
 let db = null
 let userId = null
@@ -17,32 +17,32 @@ async function createPosts() {
     await db('category_post').truncate()
     await db('comments').truncate()
 
-    const categoryId1 = await category().create({
+    const categoryId1 = await Repo.create(Category, {
         title: 'Category one'
     })
 
-    const categoryId2 = await category().create({
+    const categoryId2 = await Repo.create(Category, {
         title: 'Category two'
     })
 
-    const postId1 = await post().create({
+    const postId1 = await Repo.create(Post, {
         title: 'First post',
         content: 'First post content',
         author_id: userId
     })
 
-    const postId2 = await post().create({
+    const postId2 = await Repo.create(Post, {
         title: 'Second post',
         content: 'Second post content',
         author_id: userId
     })
 
-    const commentId1 = await comment().create({
+    const commentId1 = await Repo.create(Comment, {
         comment: 'First comment',
         post_id: postId1
     })
 
-    const commentId2 = await comment().create({
+    const commentId2 = await Repo.create(Comment, {
         comment: 'Second comment',
         post_id: postId1
     })
@@ -75,12 +75,12 @@ before(async () => {
     await db('addresses').truncate()
     await db('categories').truncate()
 
-    userId = await user().create({
+    userId = await Repo.create(User, {
         name: 'Test User',
         email: 'john@doe.com'
     })
 
-    await address().create({
+    await Repo.create(Address, {
         user_id: userId,
         address: 'Middle of Nowhere 211'
     })
@@ -99,48 +99,52 @@ describe('Migrator', () => {
 describe('Query', () => {
 
     it('should format output data', async () => {
-        const res = await post().find()
+        const res = await Repo.find(Post)
         assert(res.metadata === 'METADATA')
     })
 
     it('should transform input data', async () => {
-        const id = await post().create({
+        const id = await Repo.create(Post, {
             title: 'Hello world',
             content: 'Not formatted'
         })
 
-        const p = await post().where('id', id).find()
+        const p = await Repo.find(Post, { id })
 
         assert(p.content === 'Formatted')
     })
 
     it('should change query on model', async () => {
-        const res = await post().where('title', 'First post').get()
+        const res = await Repo.get(Post, {
+            title: 'First post'
+        })
         assert(res[0].title === 'First post')
         assert(res.length === 1)
     })
 
     it('should set default query', async () => {
-        const res = await post().orderBy('title', 'desc').get()
+        const res = await Repo.get(Post, query => query.orderBy('title', 'desc'))
         assert(res[0].title === 'Second post')
     })
 
     it('should update a record', async () => {
-        const addr = await address().find()
-        await address().where('id', addr.id).update({
+        const addr = await Repo.find(Address)
+        await Repo.update(Address, { id: addr.id }, {
             address: 'Changed address'
         })
 
-        const res = await address().find()
+        const res = await Repo.find(Address)
         assert(res.address === 'Changed address')
     })
 
     it('should delete a record', async () => {
-        const p = await post().find()
+        const p = await Repo.find(Post)
 
-        await post().where('id', p.id).destroy()
+        await Repo.destroy(Post, {
+            id: p.id
+        })
 
-        const res = await post().where('id', p.id).find()
+        const res = await Repo.find(Post, { id: p.id })
         assert(!res)
     })
 
@@ -148,7 +152,7 @@ describe('Query', () => {
         // Rest posts db
         await createPosts()
 
-        const res = await post().paginate(1, 0)
+        const res = await Repo.paginate(Post, 1, 0)
         assert(res.current === 1)
         assert(res.pages === 2)
         assert(res.total === 2)
@@ -158,26 +162,26 @@ describe('Query', () => {
     it('should order items', async () => {
         await db('photo').truncate()
 
-        const itemId1 = await photo().create({
+        const itemId1 = await Repo.create(Photo, {
             title: 'First',
             order: 0
         })
 
-        const itemId2 = await photo().create({
+        const itemId2 = await Repo.create(Photo, {
             title: 'Second',
             order: 1
         })
 
-        const itemId3 = await photo().create({
+        const itemId3 = await Repo.create(Photo, {
             title: 'Third',
             order: 2
         });
 
         ([itemId3, itemId2, itemId1]).map(async (id: string, ndx: number) => {
-            await photo().where('id', id).update({order: ndx})
+            await Repo.update(Photo, { id }, { order: ndx })
         })
 
-        const res = await photo().orderBy('order', 'asc').get()
+        const res = await Repo.get(Photo, query => query.orderBy('order', 'asc'))
 
         assert(res[0].title === 'Third')
         assert(res[0].order === 0)
@@ -190,7 +194,7 @@ describe('Query', () => {
 
 describe('Query relations', () => {
     it('should give belongsToMany relations', async () => {
-        const res = await post().with(['categories']).find()
+        const res = await Repo.find(Post, null, ['categories'])
 
         assert(Array.isArray(res.categories))
         assert(res.categories.length > 0)
@@ -198,53 +202,55 @@ describe('Query relations', () => {
     })
 
     it('should give hasOne relations', async () => {
-        const res = await user().with(['address']).find()
+        const res = await Repo.find(User, null, ['address'])
         assert(res.address.id !== '')
         assert(res.address.address !== '')
     })
 
     it('should give has many relations', async () => {
-        const res = await post().with(['comments']).find()
+        const res = await Repo.find(Post, null, ['comments'])
         assert(res.comments[0].comment !== '')
     })
 
     it('should give hasOne relations with other table', async () => {
-        const res = await user().with(['address']).find()
+        const res = await Repo.find(User, null, ['address'])
         assert(res.address.address !== '')
     })
 
     it('should test belongsTo relations with other table', async () => {
-        const res = await address().with(['user']).find()
+        const res = await Repo.find(Address, null, ['user'])
         assert(res.user.name === 'Test User')
     })
 
     it('should give sync relations', async () => {
-        const categories = await category().get()
+        const categories = await Repo.get(Category)
         const categoryIds = categories.map(c => c.id)
-        const p = await post().find()
+        const p = await Repo.find(Post)
 
         await db('category_post').truncate()
 
-        await post().sync('categories', p.id, categoryIds)
-        const res = await post().where('id', p.id).find()
+        await Repo.sync(Post, 'categories', p.id, categoryIds)
+        const res = await Repo.find(Post, { id: p.id })
 
         assert(res.categories.length > 0)
     })
 
     it('should give belongsTo relations', async () => {
-        const res = await address().with(['user']).find()
+        const res = await Repo.find(Address, null, ['user'])
         assert(res.user.name === 'Test User')
     })
 
     it('should give results with whereExists', async () => {
         await createPosts()
 
-        const res = await post().whereExists((db) => {
-            return db('categories')
+        const res = await Repo.get(Post, (query, db) => {
+            const select = db('categories')
                 .where('title', 'Category one')
                 .leftJoin('category_post', 'category_post.category_id', 'categories.id')
                 .whereRaw('category_post.post_id = posts.id')
-        }).get()
+
+            query.whereExists(select)
+        })
 
         assert(res.length === 1)
         assert(res[0].title === 'First post')

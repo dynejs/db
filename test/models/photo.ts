@@ -1,4 +1,4 @@
-import { Field, Model, Repo } from '../../src'
+import { Field, Model } from '../../src'
 
 @Model({
     table: 'photo'
@@ -19,5 +19,3 @@ export class Photo {
 
     related_type: string
 }
-
-export const photo = () => new Repo(Photo)

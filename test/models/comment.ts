@@ -1,4 +1,4 @@
-import { Field, Model, Repo } from '../../src'
+import { Field, Model } from '../../src'
 
 @Model({
     table: 'comments'
@@ -12,5 +12,3 @@ export class Comment {
 
     post_id: string
 }
-
-export const comment = () => new Repo(Comment)

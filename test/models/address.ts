@@ -1,9 +1,9 @@
-import { BelongsTo, Field, Model, Repo } from '../../src'
+import { BelongsTo, Field, Model } from '../../src'
 import { User } from './user'
 
 @Model({
     table: 'addresses',
-    with: []
+    with: ['user']
 })
 export class Address {
     @Field()
@@ -18,5 +18,3 @@ export class Address {
 
     user_id: string
 }
-
-export const address = () => new Repo(Address)

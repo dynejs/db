@@ -1,14 +1,24 @@
 import uuid = require('uuid')
 import Knex = require('knex')
-import { Connection } from './connection'
 import { Constructable, resolve } from '@dynejs/core'
-import { FieldMetadataArgs, RelationMetadataArgs, metadataStorage } from './metadata/metadata-storage'
+import { metadataStorage } from './metadata/metadata-storage'
+import { Connection } from './connection'
 import { HasOne } from './relations/has-one'
 import { BelongsTo } from './relations/belongs-to'
 import { HasMany } from './relations/has-many'
 import { BelongsToMany } from './relations/belongs-to-many'
+import { QueryBuilder } from 'knex'
 
-export type AttributeKeys<T, K extends keyof T> = Pick<T, K> | T
+export type QueryModifier = (query: QueryBuilder, db?: Knex) => void
+
+export type QueryConditions = {
+    [key: string]: any
+}
+
+export interface Model {
+    transform?: () => void
+    format?: () => void
+}
 
 export interface DBRow {
     [key: string]: string
@@ -17,98 +27,83 @@ export interface DBRow {
 export class Repo<T> {
 
     /**
-     * Knex instance
+     * Get current connection(Knex) instance
      */
-    public db: Knex
-
-    /**
-     * Table name used for queries
-     */
-    public table: string
-
-    /**
-     * Relations metadata on the for the current repo
-     */
-    public relations: RelationMetadataArgs[]
-
-    /**
-     * Model fields metadata
-     */
-    public fields: FieldMetadataArgs[]
-
-    /**
-     * Model used for building query
-     */
-    public model: Constructable<any>
-
-    /**
-     * Internal Knex query
-     */
-    private _query: Knex.QueryBuilder
-
-    /**
-     * Relations to load in the current query
-     * its optionally set by query or on model metadata
-     */
-    private _with: string[]
-
-    constructor(model: Constructable<T>) {
-        if (!model) {
-            throw new Error('No model in initialization of repo')
-        }
-        this.model = model
-        this.setup()
+    static getDB() {
+        return resolve(Connection).active()
     }
 
     /**
-     * Initial setup based on model decorators
+     * Get the query builder
+     *
+     * @param model
      */
-    setup() {
-        this.db = resolve(Connection).active()
-        this.relations = metadataStorage.getRelations(this.model.name)
-        this.fields = metadataStorage.getFields(this.model.name)
+    static getBuilder<T>(model: Constructable<T>): QueryBuilder {
+        const db = this.getDB()
+        const modelDescription = metadataStorage.getModelMeta(model.name)
 
-        const modelDescription = metadataStorage.getModelMeta(this.model.name)
-        this.table = modelDescription.table
-        this._with = modelDescription.with || null
-
-        this.reset()
+        return db(modelDescription.table)
     }
 
     /**
-     * Resets the query
-     * Queries are reseted after read/write operations
+     * Get default relations for the model
+     *
+     * @param model
      */
-    reset() {
-        this._query = this.db(this.table)
+    static getRelations<T>(model: Constructable<T>) {
+        return metadataStorage.getRelations(model.name)
+    }
+
+    /**
+     * Get fields info for model
+     *
+     * @param model
+     */
+    static getFields<T>(model: Constructable<T>) {
+        return metadataStorage.getFields(model.name)
+    }
+
+    /**
+     * Get model "with" setting
+     *
+     * @param model
+     */
+    static getModelWith<T>(model: Constructable<T>) {
+        return metadataStorage.getModelMeta(model.name)?.with || []
     }
 
     /**
      * Used internally but public for make queries on related repos
      */
-    async rawGet(): Promise<T[]> {
-        let result = await this._query
+    static async rawGet<T>(model: Constructable<T>, query?: QueryModifier | QueryConditions, preload?: string[]): Promise<T[]> {
+        const builder = this.getBuilder(model)
 
-        const relations = this.relations.filter(relation => {
-            return this._with
-                ? this._with.indexOf(relation.as) > -1
+        this.changeQuery(builder, query)
+
+        // Runs the query
+        let result = await builder
+
+        const _with = preload || this.getModelWith(model)
+        const relations = this.getRelations(model).filter(relation => {
+            return _with
+                ? _with.indexOf(relation.as) > -1
                 : true
         })
 
         for (const relation of relations) {
-            if(relation.type === 'has-one') {
+            if (relation.type === 'has-one') {
                 await (new HasOne(result, relation)).build()
             }
 
-            if(relation.type === 'belongs-to') {
+            if (relation.type === 'belongs-to') {
                 await (new BelongsTo(result, relation)).build()
             }
 
-            if(relation.type === 'has-many') {
+            if (relation.type === 'has-many') {
                 await (new HasMany(result, relation)).build()
             }
 
-            if(relation.type === 'belongs-to-many') {
+            if (relation.type === 'belongs-to-many') {
                 await (new BelongsToMany(result, relation)).build()
             }
         }
@@ -119,28 +114,29 @@ export class Repo<T> {
     /**
      * Formats the result based on fields metadata
      *
+     * @param model
      * @param result
      */
-    format(result: T[] | T): any {
+    static format<T extends Model>(model: Constructable<T>, result: T[] | T): any {
         if (!result) {
             return null
         }
 
-        const fields = metadataStorage.getFields(this.model.name)
+        const fields = this.getFields(model)
 
         const formatFields = (item: T) => {
             // Creating a new model
-            const model = new this.model()
+            const m = new model()
 
             // Set model properties
             const formattedModel = fields.reduce((acc, field) => {
-                acc[field.name] = this.cast(field.name, item[field.name])
+                acc[field.name] = item[field.name]
                 return acc
-            }, model)
+            }, m)
 
             // Run a format, to make additional changes on model
-            if (typeof model.format === 'function') {
-                model.format()
+            if (typeof m.format === 'function') {
+                m.format()
             }
 
             return formattedModel
@@ -157,92 +153,104 @@ export class Repo<T> {
      * Create a query with the model parameters
      * and formats the output
      */
-    async get<A extends keyof T>(attributes?: AttributeKeys<T, A>): Promise<T[]> {
-        this.buildWhere(attributes)
+    static async get<T>(model: Constructable<T>, query?: QueryModifier | QueryConditions, preload?: string[]): Promise<T[]> {
+        let result = await this.rawGet(model, query, preload)
 
-        let result = await this.rawGet()
-
-        this.reset()
-
-        return this.format(result)
+        return this.format(model, result)
     }
 
     /**
      * Retreive only one result from the query result
      */
-    async find<A extends keyof T>(attributes?: AttributeKeys<T, A>): Promise<T> {
-        this.buildWhere(attributes)
-        const res = await this.get()
+    static async find<T>(model: Constructable<T>, query?: QueryModifier | QueryConditions, preload?: string[]): Promise<T> {
+        const res = await this.get(model, query, preload)
+
         return res.shift()
     }
 
     /**
      * Runs a new insert query with the given attributes
      *
+     * @param model
      * @param attributes
      */
-    async create<A extends keyof T>(attributes: AttributeKeys<T, A>): Promise<string> {
-        const model = new this.model()
+    static async create<T>(model: Constructable<T>, attributes): Promise<string> {
+        const builder = this.getBuilder(model)
+        const instance: any = new model()
 
-        const data = Object.assign(model, {
+        const data = Object.assign(instance, attributes, {
             id: this.getPrimaryKey(),
-            ...attributes,
             created_at: new Date(),
             updated_at: new Date()
         })
 
-        if (typeof model.transform === 'function') {
-            await model.transform()
+        if (typeof instance.transform === 'function') {
+            await instance.transform()
         }
 
-        await this._query.insert(data)
+        await builder.insert(data)
         return data.id
     }
 
     /**
      * Updates a record with the given attributes
      *
+     * @param model
      * @param attributes
+     * @param query
      */
-    async update<A extends keyof T>(attributes: AttributeKeys<T, A>): Promise<boolean> {
-        const model = new this.model()
+    static async update<T>(model: Constructable<T>, query: QueryModifier | QueryConditions, attributes: any): Promise<boolean> {
+        const builder = this.getBuilder(model)
 
-        const data = Object.assign(model, {
-            ...attributes,
+        this.changeQuery(builder, query)
+
+        const instance: any = new model()
+        const data = Object.assign(instance, attributes, {
             updated_at: new Date()
         })
 
-        if (typeof model.transform === 'function') {
-            await model.transform()
+        if (typeof instance.transform === 'function') {
+            await instance.transform()
         }
 
-        const updated = await this._query.update(data)
+        const updated = await builder.update(data)
 
         return updated !== 0
     }
 
     /**
      * Deletes a record with the current query
+     *
+     * @param model
+     * @param query
      */
-    async destroy<A extends keyof T>(attributes?: AttributeKeys<T, A>): Promise<boolean> {
-        this.buildWhere(attributes)
-        const deleted = await this._query.delete()
+    static async destroy<T>(model: Constructable<T>, query: QueryModifier | QueryConditions): Promise<boolean> {
+        const builder = this.getBuilder(model)
+
+        this.changeQuery(builder, query)
+
+        const deleted = await builder.delete()
         return deleted !== 0
     }
 
     /**
      * Paginates the result set
      *
+     * @param model
+     * @param query
      * @param size
      * @param offset
      */
-    async paginate(size = 30, offset: number | string = 0) {
+    static async paginate<T>(model: Constructable<T>, size = 30, offset: number | string = 0, query?: QueryModifier) {
         offset = Number(offset)
-        const query = this._query
-        const paged = await query.clone()
+        const builder = this.getBuilder(model)
 
-        query.limit(size).offset(offset * size)
-        const result = await this.get()
+        this.changeQuery(builder, query)
+
+        const paged = await builder.clone()
+
+        builder.limit(size).offset(offset * size)
+        const result = await this.get(model)
 
         return {
             current: offset + 1,
@@ -255,121 +263,50 @@ export class Repo<T> {
     /**
      * Sync many-to-many relations
      *
+     * @param model
      * @param relation
      * @param id
      * @param ids
      */
-    async sync(relation: string, id: string, ids: string[]) {
-        const relationData = metadataStorage.findRelation(this.model.name, relation)
+    static async sync<T>(model: Constructable<T>, relation: string, id: string, ids: string[]) {
+        const relationData = metadataStorage.findRelation(model.name, relation)
+
         if (!relationData) {
-            throw new Error(`Relation data not found for: ${this.model.name} and relation: ${relation}`)
+            throw new Error(`Relation data not found for: ${model.name} and relation: ${relation}`)
         }
-        await (new BelongsToMany([], relationData)).sync(this.db, id, ids)
-    }
-
-    /**
-     * Cast model properties
-     *
-     * @param name
-     * @param value
-     */
-    cast(name: string, value: any) {
-        const fieldMeta = metadataStorage.findField(this.model.name, name)
-        if (!fieldMeta) {
-            return value
-        }
-
-        if (fieldMeta.cast === 'boolean') {
-            return !!value
-        }
-
-        return value
+        await (new BelongsToMany([], relationData)).sync(this.getDB(), id, ids)
     }
 
     /**
      * Get primary key for models
      */
-    getPrimaryKey() {
+    static getPrimaryKey() {
         return uuid.v4()
     }
 
     /**
-     * A hook to set the query directly
+     * Run hooks for chaning query
      *
-     * @param cb
+     * @param builder
+     * @param query
      */
-    query(cb: (query: Knex.QueryBuilder, db?: Knex) => void) {
-        cb(this._query, this.db)
-        return this
-    }
+    private static changeQuery(builder: QueryBuilder, query: QueryModifier | QueryConditions) {
+        if (query && typeof query === 'function') {
+            query(builder, this.getDB())
+        }
 
-    /**
-     * Set custom relations for the current query
-     *
-     * @param relations
-     */
-    with(relations: string[]) {
-        this._with = relations
-        return this
-    }
-
-    /**
-     * Query orderBy
-     *
-     * @param key
-     * @param dir
-     */
-    orderBy(key: string, dir: string): this {
-        this._query.orderBy(key, dir)
-        return this
-    }
-
-    /**
-     * Query groupBy
-     *
-     * @param args
-     */
-    groupBy(...args: any): this {
-        this._query.groupBy.apply(this._query, args)
-        return this
-    }
-
-    /**
-     * Query where
-     *
-     * @param args
-     */
-    where(...args: any): this {
-        this._query.where.apply(this._query, args)
-        return this
-    }
-
-    /**
-     * Query whereIn
-     *
-     * @param args
-     */
-    whereIn(...args: any[]) {
-        this._query.whereIn.apply(this._query, args)
-        return this
-    }
-
-    /**
-     * Query whereExists
-     *
-     * @param cb
-     */
-    whereExists(cb) {
-        this._query.whereExists(cb(this.db))
-        return this
+        if (query && typeof query === 'object') {
+            this.buildWhere(builder, query)
+        }
     }
 
     /**
      * Parse object key-value pairs to build where conditionals
      *
+     * @param query
      * @param params
      */
-    private buildWhere(params) {
+    private static buildWhere(query, params) {
         if (params && typeof params !== 'object') {
             throw new Error('Query parameters must be an object')
         }
@@ -377,7 +314,7 @@ export class Repo<T> {
             return null
         }
         for (const i in params) {
-            this._query.where(i, params[i])
+            query.where(i, params[i])
         }
     }
 }

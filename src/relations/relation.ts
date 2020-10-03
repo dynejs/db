@@ -6,19 +6,11 @@ export abstract class Relation {
 
     protected result: DBRow[]
 
-    protected repo: Repo<any>
-
     protected meta: RelationMetadataArgs
 
     constructor(result: DBRow[], relation: RelationMetadataArgs) {
         this.result = result
         this.meta = relation
-        this.repo = new Repo(relation.model())
-
-        this.repo.query(query => {
-            this.query(query)
-            this.customQuery(query)
-        })
     }
 
     abstract query(query: Knex.QueryBuilder)
@@ -26,7 +18,10 @@ export abstract class Relation {
     abstract async appendResult(relationResult: DBRow[])
 
     async build() {
-        const relationResult = await this.repo.rawGet()
+        const relationResult = await Repo.rawGet(this.meta.model(), query => {
+            this.query(query)
+            this.customQuery(query)
+        })
 
         this.appendResult(relationResult)
     }

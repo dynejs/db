@@ -1,4 +1,4 @@
-import { BelongsTo, BelongsToMany, Field, HasMany, HasOne, Model, Repo } from '../../src'
+import { BelongsTo, BelongsToMany, Field, HasMany, HasOne, Model } from '../../src'
 import { Category } from './category'
 import { Photo } from './photo'
 import { User } from './user'
@@ -6,7 +6,8 @@ import { HasFormatter, HasTransformer } from '../../src/common'
 import { Comment } from './comment'
 
 @Model({
-    table: 'posts'
+    table: 'posts',
+    with: ['categories', 'comments']
 })
 export class Post implements HasFormatter, HasTransformer {
 
@@ -47,6 +48,7 @@ export class Post implements HasFormatter, HasTransformer {
 
     author_id: string
 
+    @Field()
     metadata: string
 
     format() {
@@ -57,5 +59,3 @@ export class Post implements HasFormatter, HasTransformer {
         this.content = 'Formatted'
     }
 }
-
-export const post = () => new Repo(Post)

@@ -1,6 +1,6 @@
 import { Relation } from './relation'
 import Knex from 'knex'
-import { DBRow } from '../repo'
+import { DBRow, Repo } from '../repo'
 
 export class BelongsTo extends Relation {
 
@@ -18,7 +18,7 @@ export class BelongsTo extends Relation {
                 return item[localKey] === relatedItem[foreignKey]
             })
 
-            item[this.meta.as] = this.repo.format(relationSet)
+            item[this.meta.as] = Repo.format(this.meta.model(), relationSet)
         })
     }
 
