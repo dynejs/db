@@ -16,36 +16,48 @@ async function createPosts() {
     await db('categories').truncate()
     await db('category_post').truncate()
     await db('comments').truncate()
+    await db('users').truncate()
+    await db('addresses').truncate()
 
-    const categoryId1 = await Repo.create(Category, {
+    userId = await Repo.create(Repo.cast(User, {
+        name: 'Test User',
+        email: 'john@doe.com'
+    }))
+
+    await Repo.create(Repo.cast(Address, {
+        user_id: userId,
+        address: 'Middle of Nowhere 211'
+    }))
+
+    const categoryId1 = await Repo.create(Repo.cast(Category, {
         title: 'Category one'
-    })
+    }))
 
-    const categoryId2 = await Repo.create(Category, {
+    const categoryId2 = await Repo.create(Repo.cast(Category, {
         title: 'Category two'
-    })
+    }))
 
-    const postId1 = await Repo.create(Post, {
+    const postId1 = await Repo.create(Repo.cast(Post, {
         title: 'First post',
         content: 'First post content',
         author_id: userId
-    })
+    }))
 
-    const postId2 = await Repo.create(Post, {
+    const postId2 = await Repo.create(Repo.cast(Post, {
         title: 'Second post',
         content: 'Second post content',
         author_id: userId
-    })
+    }))
 
-    const commentId1 = await Repo.create(Comment, {
+    const commentId1 = await Repo.create(Repo.cast(Comment, {
         comment: 'First comment',
         post_id: postId1
-    })
+    }))
 
-    const commentId2 = await Repo.create(Comment, {
+    const commentId2 = await Repo.create(Repo.cast(Comment, {
         comment: 'Second comment',
         post_id: postId1
-    })
+    }))
 
     await db('category_post').insert({
         post_id: postId1,
@@ -71,20 +83,6 @@ before(async () => {
     const cn = container().resolve(Connection)
     db = cn.active()
 
-    await db('users').truncate()
-    await db('addresses').truncate()
-    await db('categories').truncate()
-
-    userId = await Repo.create(User, {
-        name: 'Test User',
-        email: 'john@doe.com'
-    })
-
-    await Repo.create(Address, {
-        user_id: userId,
-        address: 'Middle of Nowhere 211'
-    })
-
     await createPosts()
 })
 
@@ -98,16 +96,30 @@ describe('Migrator', () => {
 
 describe('Query', () => {
 
+    it('should cast a model', async () => {
+        const casted = Repo.cast(Post, {
+            title: 'This is a title',
+            content: 'My content',
+            else: 'ELSE',
+            published: true
+        }, ['title', 'content', 'published', 'notInList'])
+
+        assert(casted.title === 'This is a title')
+        assert(casted.content === 'My content')
+        assert(casted.published === true)
+        assert((casted as any).else === undefined)
+    })
+
     it('should format output data', async () => {
         const res = await Repo.find(Post)
         assert(res.metadata === 'METADATA')
     })
 
     it('should transform input data', async () => {
-        const id = await Repo.create(Post, {
+        const id = await Repo.create(Repo.cast(Post, {
             title: 'Hello world',
             content: 'Not formatted',
-        })
+        }))
 
         const p = await Repo.find(Post, { id })
 
@@ -115,11 +127,11 @@ describe('Query', () => {
     })
 
     it('should throws on validation error', async () => {
-        const create = Repo.create(Post, {
+        const create = () => Post.make({
             title: ''
         })
 
-        assert.rejects(create)
+        assert.throws(create)
     })
 
     it('should change query on model', async () => {
@@ -130,6 +142,19 @@ describe('Query', () => {
         assert(res.length === 1)
     })
 
+    it('should run createOrUpdate', async () => {
+        const p = await Repo.find(Post)
+        await Repo.createOrUpdate(Repo.cast(Post, {id: p.id, title: 'Hello world'}))
+        const newId = await Repo.createOrUpdate(Repo.cast(Post, {title: 'Newly created'}))
+
+        const final = await Repo.find(Post, {id: p.id})
+        const newPost = await Repo.find(Post, {id: newId})
+
+        assert(final.title === 'Hello world')
+        assert(newPost.title === 'Newly created')
+        assert(final.id !== newId)
+    })
+
     it('should set default query', async () => {
         const res = await Repo.get(Post, query => query.orderBy('title', 'desc'))
         assert(res[0].title === 'Second post')
@@ -137,9 +162,7 @@ describe('Query', () => {
 
     it('should update a record', async () => {
         const addr = await Repo.find(Address)
-        await Repo.update(Address, { id: addr.id }, {
-            address: 'Changed address'
-        })
+        await Repo.update(Repo.cast(Address, { id: addr.id, address: 'Changed address' }))
 
         const res = await Repo.find(Address)
         assert(res.address === 'Changed address')
@@ -148,9 +171,7 @@ describe('Query', () => {
     it('should delete a record', async () => {
         const p = await Repo.find(Post)
 
-        await Repo.destroy(Post, {
-            id: p.id
-        })
+        await Repo.destroy(p)
 
         const res = await Repo.find(Post, { id: p.id })
         assert(!res)
@@ -170,23 +191,23 @@ describe('Query', () => {
     it('should order items', async () => {
         await db('photo').truncate()
 
-        const itemId1 = await Repo.create(Photo, {
+        const itemId1 = await Repo.create(Repo.cast(Photo, {
             title: 'First',
             order: 0
-        })
+        }))
 
-        const itemId2 = await Repo.create(Photo, {
+        const itemId2 = await Repo.create(Repo.cast(Photo, {
             title: 'Second',
             order: 1
-        })
+        }))
 
-        const itemId3 = await Repo.create(Photo, {
+        const itemId3 = await Repo.create(Repo.cast(Photo, {
             title: 'Third',
             order: 2
-        });
+        }));
 
         ([itemId3, itemId2, itemId1]).map(async (id: string, ndx: number) => {
-            await Repo.update(Photo, { id }, { order: ndx })
+            await Repo.update(Repo.cast(Photo, { id, order: ndx }))
         })
 
         const res = await Repo.get(Photo, query => query.orderBy('order', 'asc'))

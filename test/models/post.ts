@@ -1,4 +1,4 @@
-import { BelongsTo, BelongsToMany, Field, HasMany, HasOne, Model } from '../../src'
+import { BelongsTo, BelongsToMany, Field, HasMany, HasOne, Model, Repo } from '../../src'
 import { Category } from './category'
 import { Photo } from './photo'
 import { User } from './user'
@@ -51,18 +51,18 @@ export class Post {
     @Field()
     metadata: string
 
+    static make(data) {
+        const p = Repo.cast(Post, data)
+        validate(p, {
+            title: 'required'
+        })
+    }
+
     format() {
         this.metadata = 'METADATA'
     }
 
-    transform(data) {
-        validate(data, {
-            title: 'required'
-        })
-
-        return {
-            title: data.title,
-            content: 'Formatted'
-        }
+    transform() {
+        this.content = 'Formatted'
     }
 }

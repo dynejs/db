@@ -16,5 +16,6 @@ export class Address {
     @Field()
     user: User
 
+    @Field()
     user_id: string
 }

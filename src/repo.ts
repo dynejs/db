@@ -16,6 +16,7 @@ export type QueryConditions = {
 }
 
 export interface Model {
+    id?: string
     transform?: () => void
     format?: () => void
 }
@@ -73,6 +74,30 @@ export class Repo<T> {
     }
 
     /**
+     * Casts a model from attributes
+     * if not filter presented all model fields will be set
+     * if field not presented, it will be undefined
+     *
+     * @param model
+     * @param params
+     * @param filter
+     */
+    static cast<T>(model: Constructable<T>, params, filter?: string[]): T {
+        const fields = this.getFields(model) || []
+        const m = new model()
+
+        if (!filter) {
+            filter = Object.keys(params)
+        }
+        return fields
+            .filter(f => filter ? filter.indexOf(f.name) > -1 : true)
+            .reduce((acc, field) => {
+                acc[field.name] = params[field.name]
+                return acc
+            }, m)
+    }
+
+    /**
      * Used internally but public for make queries on related repos
      */
     static async rawGet<T>(model: Constructable<T>, query?: QueryModifier | QueryConditions, preload?: string[]): Promise<T[]> {
@@ -122,14 +147,11 @@ export class Repo<T> {
             return null
         }
 
-        const fields = this.getFields(model)
-
         const formatFields = (item: T) => {
-            // Creating a new model
+            const fields = this.getFields(model) || []
             const m = new model()
 
-            // Set model properties
-            const formattedModel = fields.reduce((acc, field) => {
+            fields.reduce((acc, field) => {
                 acc[field.name] = item[field.name]
                 return acc
             }, m)
@@ -139,7 +161,7 @@ export class Repo<T> {
                 m.format()
             }
 
-            return formattedModel
+            return m
         }
 
         if (!Array.isArray(result)) {
@@ -172,54 +194,59 @@ export class Repo<T> {
      * Runs a new insert query with the given attributes
      *
      * @param model
-     * @param attributes
      */
-    static async create<T>(model: Constructable<T>, attributes): Promise<string> {
-        const builder = this.getBuilder(model)
-        const instance: any = new model()
+    static async create<T extends Model>(model: T): Promise<string> {
+        const builder = this.getBuilder(model.constructor as Constructable<T>)
 
-        let data = Object.assign(instance, attributes)
-
-        if (typeof instance.transform === 'function') {
-            data = await instance.transform(data)
+        if (typeof model.transform === 'function') {
+            await model.transform()
         }
 
-        data = Object.assign(data, {
+        model = Object.assign(model, {
             id: this.getPrimaryKey(),
             created_at: new Date(),
             updated_at: new Date()
         })
 
-        await builder.insert(data)
-        return data.id
+        await builder.insert(model)
+        return model.id
     }
 
     /**
      * Updates a record with the given attributes
      *
      * @param model
-     * @param attributes
      * @param query
      */
-    static async update<T>(model: Constructable<T>, query: QueryModifier | QueryConditions, attributes: any): Promise<boolean> {
-        const builder = this.getBuilder(model)
+    static async update<T extends Model>(model: T, query?: QueryModifier | QueryConditions): Promise<boolean> {
+        const builder = this.getBuilder(model.constructor as Constructable<T>)
 
+        builder.where('id', model.id)
         this.changeQuery(builder, query)
 
-        const instance: any = new model()
-        let data = Object.assign(instance, attributes)
-
-        if (typeof instance.transform === 'function') {
-            data = await instance.transform(data)
+        if (typeof model.transform === 'function') {
+            await model.transform()
         }
 
-        data = Object.assign(data, {
+        model = Object.assign(model, {
             updated_at: new Date()
         })
 
-        const updated = await builder.update(data)
-
+        const updated = await builder.update(model)
         return updated !== 0
+    }
+
+    /**
+     * Creates or updates a model depending on
+     * primary key exists
+     *
+     * @param model
+     */
+    static async createOrUpdate<T extends Model>(model: T) {
+        if (model.id) {
+            return Repo.update(model)
+        }
+        return Repo.create(model)
     }
 
     /**
@@ -228,9 +255,10 @@ export class Repo<T> {
      * @param model
      * @param query
      */
-    static async destroy<T>(model: Constructable<T>, query: QueryModifier | QueryConditions): Promise<boolean> {
-        const builder = this.getBuilder(model)
+    static async destroy<T extends Model>(model: T, query?: QueryModifier | QueryConditions): Promise<boolean> {
+        const builder = this.getBuilder(model.constructor as Constructable<T>)
 
+        builder.where('id', model.id)
         this.changeQuery(builder, query)
 
         const deleted = await builder.delete()

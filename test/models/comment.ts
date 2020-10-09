@@ -10,5 +10,6 @@ export class Comment {
     @Field()
     comment: string
 
+    @Field()
     post_id: string
 }

@@ -16,6 +16,9 @@ export class User {
     @Field()
     email: string
 
+    @Field()
+    address_id: string
+
     @HasOne(() => Address)
     @Field()
     address: Address
